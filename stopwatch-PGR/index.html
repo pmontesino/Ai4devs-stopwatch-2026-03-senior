@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MATRIX TIMER</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --green: #00FF41;
+    --green-dim: #00AA2B;
+    --green-dark: #003B0F;
+    --green-glow: rgba(0, 255, 65, 0.4);
+    --red: #FF2222;
+    --red-dim: #AA0000;
+    --red-glow: rgba(255, 34, 34, 0.4);
+    --bg: #000000;
+    --panel: #020D02;
+    --border: #00FF41;
+    --text: #00FF41;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Matrix rain canvas */
+  #matrix-rain {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    opacity: 0.12;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  .app-wrapper {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 640px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Header */
+  .header {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 8px;
+    color: var(--green-dim);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    text-shadow: 0 0 10px var(--green-dim);
+  }
+
+  .header-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green), 0 0 40px var(--green-glow);
+    margin-bottom: 30px;
+  }
+
+  /* SCREENS */
+  .screen { display: none; width: 100%; flex-direction: column; align-items: center; }
+  .screen.active { display: flex; }
+
+  /* ===================== MENU ===================== */
+  .menu-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .menu-card {
+    border: 2px solid var(--green-dim);
+    border-radius: 4px;
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    background: var(--panel);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .menu-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--green-glow) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .menu-card:hover {
+    border-color: var(--green);
+    box-shadow: 0 0 20px var(--green-glow), inset 0 0 20px rgba(0,255,65,0.05);
+    transform: translateY(-2px);
+  }
+
+  .menu-card:hover::before { opacity: 1; }
+
+  .menu-card:active { transform: translateY(0); }
+
+  .menu-card-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--green);
+    text-shadow: 0 0 8px var(--green-glow);
+  }
+
+  /* ===================== DISPLAY ===================== */
+  .display-box {
+    background: #010801;
+    border: 3px solid var(--green);
+    border-radius: 6px;
+    width: 100%;
+    padding: 20px 28px 16px;
+    text-align: right;
+    box-shadow: 0 0 30px var(--green-glow), inset 0 0 30px rgba(0,255,65,0.04);
+    position: relative;
+    margin-bottom: 24px;
+  }
+
+  .display-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+  }
+
+  .display-time {
+    font-family: 'Orbitron', monospace;
+    font-size: 72px;
+    font-weight: 900;
+    color: var(--green);
+    text-shadow: 0 0 20px var(--green), 0 0 40px var(--green-glow);
+    letter-spacing: 4px;
+    line-height: 1;
+  }
+
+  .display-time.warning {
+    color: #FFAA00;
+    text-shadow: 0 0 20px #FFAA00, 0 0 40px rgba(255,170,0,0.4);
+    animation: pulse-warning 0.5s infinite;
+  }
+
+  .display-time.alarm {
+    color: var(--red);
+    text-shadow: 0 0 20px var(--red), 0 0 40px var(--red-glow);
+    animation: pulse-alarm 0.3s infinite;
+  }
+
+  @keyframes pulse-warning {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  @keyframes pulse-alarm {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .display-ms {
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--green-dim);
+    letter-spacing: 2px;
+    margin-top: 4px;
+  }
+
+  .display-mode-label {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--green-dim);
+    font-family: 'Orbitron', monospace;
+  }
+
+  /* ===================== BUTTONS ===================== */
+  .btn-row {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    margin-bottom: 12px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 16px;
+    font-family: 'Orbitron', monospace;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    border-radius: 4px;
+    border: 2px solid;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-transform: uppercase;
+  }
+
+  .btn-start {
+    background: #001A00;
+    color: var(--green);
+    border-color: var(--green);
+    box-shadow: 0 0 12px var(--green-glow);
+  }
+
+  .btn-start:hover {
+    background: #003300;
+    box-shadow: 0 0 24px var(--green-glow), inset 0 0 12px rgba(0,255,65,0.1);
+    transform: translateY(-1px);
+  }
+
+  .btn-start:active { transform: translateY(0); }
+
+  .btn-start.running {
+    background: #1A0000;
+    color: #FFAA00;
+    border-color: #FFAA00;
+    box-shadow: 0 0 12px rgba(255,170,0,0.4);
+  }
+
+  .btn-clear {
+    background: #1A0000;
+    color: var(--red);
+    border-color: var(--red);
+    box-shadow: 0 0 12px var(--red-glow);
+  }
+
+  .btn-clear:hover {
+    background: #2A0000;
+    box-shadow: 0 0 24px var(--red-glow), inset 0 0 12px rgba(255,34,34,0.1);
+    transform: translateY(-1px);
+  }
+
+  .btn-clear:active { transform: translateY(0); }
+
+  .btn-back {
+    background: transparent;
+    color: var(--green-dim);
+    border-color: var(--green-dark);
+    font-size: 12px;
+    letter-spacing: 4px;
+    flex: none;
+    padding: 10px 20px;
+  }
+
+  .btn-back:hover {
+    color: var(--green);
+    border-color: var(--green-dim);
+    background: rgba(0,255,65,0.03);
+  }
+
+  /* ===================== NUMPAD ===================== */
+  .numpad {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 16px;
+  }
+
+  .numpad-btn {
+    aspect-ratio: 1;
+    background: #010801;
+    border: 2px solid var(--green-dark);
+    color: var(--green);
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .numpad-btn:hover {
+    border-color: var(--green);
+    box-shadow: 0 0 12px var(--green-glow);
+    background: #003300;
+    transform: scale(1.05);
+  }
+
+  .numpad-btn:active { transform: scale(0.97); }
+
+  .numpad-btn.btn-set {
+    background: #001A00;
+    border-color: var(--green);
+    box-shadow: 0 0 8px var(--green-glow);
+    font-size: 13px;
+    letter-spacing: 2px;
+  }
+
+  .numpad-btn.btn-clr {
+    background: #1A0000;
+    border-color: var(--red-dim);
+    color: var(--red);
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  .numpad-input-display {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    color: var(--green-dim);
+    text-align: center;
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+    height: 20px;
+  }
+
+  /* ===================== BACK ROW ===================== */
+  .back-row {
+    display: flex;
+    justify-content: flex-start;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  /* Alarm overlay */
+  #alarm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(180,0,0,0.15);
+    z-index: 500;
+    pointer-events: none;
+    animation: alarm-flash 0.4s infinite;
+  }
+
+  @keyframes alarm-flash {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* Glitch effect on header */
+  .header-title {
+    animation: glitch 8s infinite;
+  }
+
+  @keyframes glitch {
+    0%,95%,100% { text-shadow: 0 0 20px var(--green), 0 0 40px var(--green-glow); transform: none; }
+    96% { text-shadow: -2px 0 var(--red), 2px 0 #00ffff; transform: skewX(-1deg); }
+    97% { text-shadow: 2px 0 var(--red), -2px 0 #00ffff; transform: skewX(1deg); }
+    98% { text-shadow: 0 0 20px var(--green), 0 0 40px var(--green-glow); transform: none; }
+  }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .display-time { font-size: 50px; }
+    .header-title { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-rain"></canvas>
+
+<div id="alarm-overlay"></div>
+
+<div class="app-wrapper">
+  <div class="header">// SYSTEM ONLINE //</div>
+  <div class="header-title">MATRIX TIMER</div>
+
+  <!-- ===== MENU ===== -->
+  <div id="screen-menu" class="screen active">
+    <div class="menu-grid">
+
+      <div class="menu-card" onclick="navigateTo('stopwatch')">
+        <svg width="120" height="130" viewBox="0 0 120 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Crown / top of stopwatch -->
+          <rect x="48" y="6" width="24" height="10" rx="3" fill="#003B0F" stroke="#00FF41" stroke-width="2"/>
+          <!-- Red pusher button -->
+          <rect x="82" y="2" width="14" height="22" rx="7" fill="#660000" stroke="#FF2222" stroke-width="2"/>
+          <rect x="85" y="2" width="8" height="10" rx="4" fill="#FF2222" opacity="0.9"/>
+          <!-- Shine on button -->
+          <rect x="86" y="3" width="3" height="5" rx="2" fill="#FF8888" opacity="0.6"/>
+          <!-- Side lug -->
+          <rect x="76" y="10" width="10" height="6" rx="2" fill="#002A00" stroke="#00AA2B" stroke-width="1.5"/>
+          <!-- Watch body -->
+          <circle cx="58" cy="82" r="46" fill="#010801" stroke="#00FF41" stroke-width="2.5"/>
+          <circle cx="58" cy="82" r="43" fill="none" stroke="#003B0F" stroke-width="1"/>
+          <!-- Tick marks -->
+          <line x1="58" y1="40" x2="58" y2="48" stroke="#00AA2B" stroke-width="2"/>
+          <line x1="58" y1="116" x2="58" y2="124" stroke="#00AA2B" stroke-width="2"/>
+          <line x1="14" y1="82" x2="22" y2="82" stroke="#00AA2B" stroke-width="2"/>
+          <line x1="94" y1="82" x2="102" y2="82" stroke="#00AA2B" stroke-width="2"/>
+          <!-- Minor ticks -->
+          <line x1="83" y1="45" x2="80" y2="52" stroke="#003B0F" stroke-width="1.5"/>
+          <line x1="33" y1="45" x2="36" y2="52" stroke="#003B0F" stroke-width="1.5"/>
+          <line x1="83" y1="119" x2="80" y2="112" stroke="#003B0F" stroke-width="1.5"/>
+          <line x1="33" y1="119" x2="36" y2="112" stroke="#003B0F" stroke-width="1.5"/>
+          <!-- Hour hand -->
+          <line x1="58" y1="82" x2="58" y2="55" stroke="#00FF41" stroke-width="3" stroke-linecap="round"/>
+          <!-- Minute hand -->
+          <line x1="58" y1="82" x2="76" y2="68" stroke="#00FF41" stroke-width="2" stroke-linecap="round"/>
+          <!-- Center dot -->
+          <circle cx="58" cy="82" r="4" fill="#00FF41"/>
+          <circle cx="58" cy="82" r="2" fill="#000"/>
+          <!-- Glow ring -->
+          <circle cx="58" cy="82" r="46" fill="none" stroke="#00FF41" stroke-width="1" opacity="0.3"/>
+        </svg>
+        <div class="menu-card-label">STOPWATCH</div>
+      </div>
+
+      <div class="menu-card" onclick="navigateTo('countdown')">
+        <svg width="120" height="130" viewBox="0 0 120 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Watch top -->
+          <rect x="48" y="8" width="24" height="10" rx="3" fill="#1A0000" stroke="#FF2222" stroke-width="2"/>
+          <rect x="56" y="6" width="8" height="6" rx="2" fill="#FF2222" opacity="0.6"/>
+          <!-- Watch body -->
+          <circle cx="58" cy="82" r="46" fill="#010801" stroke="#FF2222" stroke-width="2.5"/>
+          <circle cx="58" cy="82" r="43" fill="none" stroke="#3B0000" stroke-width="1"/>
+          <!-- Countdown digits on face -->
+          <text x="58" y="62" text-anchor="middle" font-family="Share Tech Mono,monospace" font-size="9" fill="#FF2222" opacity="0.7">10</text>
+          <text x="83" y="70" text-anchor="middle" font-family="Share Tech Mono,monospace" font-size="8" fill="#FF5555" opacity="0.6">9</text>
+          <text x="90" y="88" text-anchor="middle" font-family="Share Tech Mono,monospace" font-size="8" fill="#FF8888" opacity="0.5">8</text>
+          <text x="80" y="107" text-anchor="middle" font-family="Share Tech Mono,monospace" font-size="8" fill="#FFAAAA" opacity="0.45">7</text>
+          <text x="58" y="117" text-anchor="middle" font-family="Share Tech Mono,monospace" font-size="8" fill="#FFCCCC" opacity="0.4">6</text>
+          <!-- Tick marks red -->
+          <line x1="58" y1="40" x2="58" y2="48" stroke="#AA0000" stroke-width="2"/>
+          <line x1="58" y1="116" x2="58" y2="124" stroke="#AA0000" stroke-width="2"/>
+          <line x1="14" y1="82" x2="22" y2="82" stroke="#AA0000" stroke-width="2"/>
+          <line x1="94" y1="82" x2="102" y2="82" stroke="#AA0000" stroke-width="2"/>
+          <!-- Hands pointing to low number (countdown nearly done) -->
+          <line x1="58" y1="82" x2="44" y2="105" stroke="#FF2222" stroke-width="3" stroke-linecap="round"/>
+          <line x1="58" y1="82" x2="40" y2="72" stroke="#FF4444" stroke-width="2" stroke-linecap="round"/>
+          <!-- Center -->
+          <circle cx="58" cy="82" r="4" fill="#FF2222"/>
+          <circle cx="58" cy="82" r="2" fill="#000"/>
+          <!-- Glow ring -->
+          <circle cx="58" cy="82" r="46" fill="none" stroke="#FF2222" stroke-width="1" opacity="0.3"/>
+          <!-- Small arrow down indicator -->
+          <polygon points="58,118 53,110 63,110" fill="#FF2222" opacity="0.8"/>
+        </svg>
+        <div class="menu-card-label" style="color: var(--red); text-shadow: 0 0 8px var(--red-glow);">COUNTDOWN</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== STOPWATCH ===== -->
+  <div id="screen-stopwatch" class="screen">
+    <div class="display-box">
+      <div class="display-mode-label">// STOPWATCH</div>
+      <div class="display-time" id="sw-display">00:00:00</div>
+      <div class="display-ms" id="sw-ms">000</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-start" id="sw-btn-start" onclick="swStartStop()">START</button>
+      <button class="btn btn-clear" onclick="swClear()">CLEAR</button>
+    </div>
+    <div class="back-row">
+      <button class="btn btn-back" onclick="navigateTo('menu')">◀ BACK</button>
+    </div>
+  </div>
+
+  <!-- ===== COUNTDOWN ===== -->
+  <div id="screen-countdown" class="screen">
+    <div class="display-box">
+      <div class="display-mode-label">// COUNTDOWN</div>
+      <div class="display-time" id="cd-display">00:00:00</div>
+      <div class="display-ms" id="cd-ms">000</div>
+    </div>
+    <div class="numpad-input-display" id="cd-input-hint">ENTER TIME WITH KEYPAD</div>
+    <div class="numpad">
+      <button class="numpad-btn" onclick="cdDigit(5)">5</button>
+      <button class="numpad-btn" onclick="cdDigit(6)">6</button>
+      <button class="numpad-btn" onclick="cdDigit(7)">7</button>
+      <button class="numpad-btn" onclick="cdDigit(8)">8</button>
+      <button class="numpad-btn" onclick="cdDigit(9)">9</button>
+      <button class="numpad-btn btn-set" onclick="cdSet()">SET</button>
+      <button class="numpad-btn" onclick="cdDigit(0)">0</button>
+      <button class="numpad-btn" onclick="cdDigit(1)">1</button>
+      <button class="numpad-btn" onclick="cdDigit(2)">2</button>
+      <button class="numpad-btn" onclick="cdDigit(3)">3</button>
+      <button class="numpad-btn" onclick="cdDigit(4)">4</button>
+      <button class="numpad-btn btn-clr" onclick="cdClearInput()">CLR</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-start" id="cd-btn-start" onclick="cdStartStop()">START</button>
+      <button class="btn btn-clear" onclick="cdReset()">CLEAR</button>
+    </div>
+    <div class="back-row">
+      <button class="btn btn-back" onclick="navigateTo('menu')">◀ BACK</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
